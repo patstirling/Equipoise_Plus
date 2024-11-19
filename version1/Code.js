@@ -146,38 +146,43 @@ function updateMenu() {
   menu.addItem(`Toggle All API Calls OFF`, 'toggleAllAPIsOff');
 
   // Add items for each specific API toggle with current status
-  menu.addItem(`Toggle Calculate Emissions API ${getStatusText("postDataToAPI")}`, 'togglePostDataToAPI');
-  menu.addItem(`Toggle Freight Data API ${getStatusText("postFreightDataToAPI")}`, 'togglePostFreightDataToAPI');
-  menu.addItem(`Toggle Travel Data API ${getStatusText("postTravelDataToAPI")}`, 'togglePostTravelDataToAPI');
-  menu.addItem(`Toggle Accommodation Data API ${getStatusText("postAccomDataToAPI")}`, 'togglePostAccomDataToAPI');
-  menu.addItem(`Toggle Spend Data API ${getStatusText("postSpendDataToAPI")}`, 'togglePostSpendDataToAPI');
+  const apiFunctions = [
+    "postDataToAPI",
+    "postFreightDataToAPI",
+    "postTravelDataToAPI",
+    "postAccomDataToAPI",
+    "postSpendDataToAPI"
+  ];
+  apiFunctions.forEach(apiFunction => {
+    menu.addItem(
+      `Toggle ${apiFunction.replace(/([A-Z])/g, ' $1')} ${getStatusText(apiFunction)}`,
+      `toggle${apiFunction.charAt(0).toUpperCase() + apiFunction.slice(1)}`
+    );
+  });
 
   // Add the menu to the UI
   menu.addToUi();
 }
 
+function toggleAllAPIs(on) {
+  const apiFunctions = [
+    "postDataToAPI",
+    "postFreightDataToAPI",
+    "postTravelDataToAPI",
+    "postAccomDataToAPI",
+    "postSpendDataToAPI"
+  ];
+
+  apiFunctions.forEach(apiFunction => setApiToggleStatus(apiFunction, on));
+  updateMenu(); // Refresh the menu to show updated statuses
+}
+
 function toggleAllAPIsOn() {
-  // Set all individual API toggles to ON
-  setApiToggleStatus("postDataToAPI", true);
-  setApiToggleStatus("postFreightDataToAPI", true);
-  setApiToggleStatus("postTravelDataToAPI", true);
-  setApiToggleStatus("postAccomDataToAPI", true);
-  setApiToggleStatus("postSpendDataToAPI", true);
-  
-  // Refresh the menu to show updated statuses
-  updateMenu();
+  toggleAllAPIs(true);
 }
 
 function toggleAllAPIsOff() {
-  // Set all individual API toggles to OFF
-  setApiToggleStatus("postDataToAPI", false);
-  setApiToggleStatus("postFreightDataToAPI", false);
-  setApiToggleStatus("postTravelDataToAPI", false);
-  setApiToggleStatus("postAccomDataToAPI", false);
-  setApiToggleStatus("postSpendDataToAPI", false);
-
-  // Refresh the menu to show updated statuses
-  updateMenu();
+  toggleAllAPIs(false);
 }
 
 function autoTurnOffAPIs() {
@@ -185,33 +190,35 @@ function autoTurnOffAPIs() {
   const now = new Date().getTime();
 
   if (lastActivityTime && now - parseInt(lastActivityTime, 10) > 3600000) { // 1 hour in milliseconds
-    setApiToggleStatus("postDataToAPI", false);
-    setApiToggleStatus("postFreightDataToAPI", false);
-    setApiToggleStatus("postTravelDataToAPI", false);
-    setApiToggleStatus("postAccomDataToAPI", false);
-    setApiToggleStatus("postSpendDataToAPI", false);
+    toggleAllAPIs(false); // Automatically turn off all APIs
   }
 }
 
+function toggleSpecificAPI(apiFunction) {
+  const currentMode = getApiToggleStatus(apiFunction);
+  setApiToggleStatus(apiFunction, !currentMode);
+  SpreadsheetApp.getUi().alert(`${apiFunction} is now ${!currentMode ? "ON" : "OFF"}`);
+  updateMenu(); // Refresh the menu with updated status
+}
 
 function togglePostDataToAPI() {
-  toggleApiStatus("postDataToAPI");
+  toggleSpecificAPI("postDataToAPI");
 }
 
 function togglePostFreightDataToAPI() {
-  toggleApiStatus("postFreightDataToAPI");
+  toggleSpecificAPI("postFreightDataToAPI");
 }
 
 function togglePostTravelDataToAPI() {
-  toggleApiStatus("postTravelDataToAPI");
+  toggleSpecificAPI("postTravelDataToAPI");
 }
 
 function togglePostAccomDataToAPI() {
-  toggleApiStatus("postAccomDataToAPI");
+  toggleSpecificAPI("postAccomDataToAPI");
 }
 
 function togglePostSpendDataToAPI() {
-  toggleApiStatus("postSpendDataToAPI");
+  toggleSpecificAPI("postSpendDataToAPI");
 }
 
 // Helper function to get the current toggle status as text
@@ -227,14 +234,6 @@ function getApiToggleStatus(apiFunction) {
 // Helper function to set the API toggle status
 function setApiToggleStatus(apiFunction, status) {
   PropertiesService.getScriptProperties().setProperty(apiFunction, status ? "true" : "false");
-}
-
-// Generic function to toggle an API status and update the menu
-function toggleApiStatus(apiFunction) {
-  const currentMode = getApiToggleStatus(apiFunction);
-  setApiToggleStatus(apiFunction, !currentMode);
-  SpreadsheetApp.getUi().alert(`${apiFunction} is now ${!currentMode ? "ON" : "OFF"}`);
-  updateMenu(); // Refresh the menu with updated status
 }
 
 
