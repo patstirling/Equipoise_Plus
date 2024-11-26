@@ -120,6 +120,9 @@ function griddropdown() {
 }
 
 function onEdit() {
+  const sheet = e.source.getActiveSheet();
+  const range = e.range;
+
   exiodropdown();
   introdropdown();
   fueldropdown();
@@ -127,9 +130,20 @@ function onEdit() {
   traveldropdown();
   wastedropdown();
   griddropdown();
+
+  if (sheet.getName() === "Accom" && range.getColumn() === 5) {
+    if (getApiToggleStatus("postAccomDataToAPI")) {
+      const result = postAccomDataToAPI(/* required parameters */); // Ensure this function is correctly parameterized
+      range.offset(0, 1).setValue(result); // Update adjacent cell with API result
+    } else {
+      range.offset(0, 1).setValue("API OFF"); // Show warning
+    }
+  }
+
   PropertiesService.getDocumentProperties().setProperty("lastActivityTime", new Date().getTime());
   ensureAutoTurnOffTrigger();
 }
+
 
 function onOpen() {
   updateMenu();
