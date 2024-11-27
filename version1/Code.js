@@ -120,8 +120,8 @@ function griddropdown() {
 }
 
 function onEdit() {
-  const sheet = e.source.getActiveSheet();
-  const range = e.range;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getActiveRange();
 
   exiodropdown();
   introdropdown();
@@ -133,7 +133,7 @@ function onEdit() {
 
   if (sheet.getName() === "Accom" && range.getColumn() === 5) {
     if (getApiToggleStatus("postAccomDataToAPI")) {
-      const result = postAccomDataToAPI(/* required parameters */); // Ensure this function is correctly parameterized
+      const result = postAccomDataToAPI(/* required parameters */);
       range.offset(0, 1).setValue(result); // Update adjacent cell with API result
     } else {
       range.offset(0, 1).setValue("API OFF"); // Show warning
@@ -143,6 +143,7 @@ function onEdit() {
   PropertiesService.getDocumentProperties().setProperty("lastActivityTime", new Date().getTime());
   ensureAutoTurnOffTrigger();
 }
+
 
 
 function onOpen() {
