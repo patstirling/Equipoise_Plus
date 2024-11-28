@@ -120,8 +120,6 @@ function griddropdown() {
 }
 
 function onEdit() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const range = sheet.getActiveRange();
 
   exiodropdown();
   introdropdown();
@@ -131,17 +129,6 @@ function onEdit() {
   wastedropdown();
   griddropdown();
 
-  if (sheet.getName() === "Accom" && range.getColumn() === 5) {
-    if (getApiToggleStatus("postAccomDataToAPI")) {
-      const result = postAccomDataToAPI(/* required parameters */);
-      range.offset(0, 1).setValue(result); // Update adjacent cell with API result
-    } else {
-      range.offset(0, 1).setValue("API OFF"); // Show warning
-    }
-  }
-
-  PropertiesService.getDocumentProperties().setProperty("lastActivityTime", new Date().getTime());
-  ensureAutoTurnOffTrigger();
 }
 
 
@@ -202,10 +189,10 @@ function toggleAllAPIsOff() {
 function autoTurnOffAPIs() {
   const lastActivityTime = PropertiesService.getDocumentProperties().getProperty("lastActivityTime");
   const now = new Date().getTime();
-  const idleTimeout = 60000; // Adjust to 3600000 (1 hour) for production
+  const idleTimeout = 60000;
 
   if (lastActivityTime && now - parseInt(lastActivityTime, 10) > idleTimeout) {
-    toggleAllAPIs(false); // Automatically turn off all APIs
+    toggleAllAPIs(false);
   }
 }
 
@@ -276,9 +263,6 @@ function toggleSpecificAPI(apiFunction) {
   SpreadsheetApp.getUi().alert(`${apiFunction} is now ${newMode ? "ON" : "OFF"}`);
   updateMenu(); // Refresh the menu with updated status
 }
-
-
-
 
 function incrementApiCallCount() {
   var properties = PropertiesService.getScriptProperties();
@@ -391,75 +375,41 @@ function postFreightDataToAPI(apiKeyCell, activityId, dataVersion, call_year, ca
   }
 }
 
-
-function postTravelDataToAPI(apiKeyCell, activityId, dataVersion, call_year, callRegion, parameter, value, d_unit, type, lca_activity) {
-  const cell = SpreadsheetApp.getActiveRange();
-  const cellKey = `postTravelDataToAPI_${cell.getA1Notation()}`;
-
-  if (!getApiToggleStatus("postTravelDataToAPI")) {
-    const lastValue = PropertiesService.getDocumentProperties().getProperty(cellKey);
-    return lastValue ? lastValue : "API is OFF";
-  }
-
-  incrementApiCallCount();
-
-  const apiUrl = "https://beta4.api.climatiq.io/estimate";
-  const apiKey = SpreadsheetApp.getActiveSpreadsheet().getRange(apiKeyCell).getValue();
-  const dataVersionValue = SpreadsheetApp.getActiveSpreadsheet().getRange(dataVersion).getValue();
-
-  const requestData = {
-    emission_factor: {
-      activity_id: activityId,
-      data_version: dataVersionValue,
-      year: call_year,
-      source_lca_activity: lca_activity
-    },
-    parameters: {
-      [parameter]: value,
-      distance: 1,
-      distance_unit: d_unit
-    }
-  };
-
-  const options = {
-    method: "post",
-    contentType: "application/json",
-    headers: {
-      "Authorization": "Bearer " + apiKey
-    },
-    payload: JSON.stringify(requestData)
-  };
-
-  try {
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const data = JSON.parse(response.getContentText());
-
-    const result = type === "CO2e" ? data.co2e : type === "Source" ? data.emission_factor.source : "Invalid type specified";
-    PropertiesService.getDocumentProperties().setProperty(cellKey, result);
-    return result;
-
-  } catch (error) {
-    return "Error: " + error.message;
-  }
-}
-
-function postAccomDataToAPI(apiKeyCell, activityId, dataVersion, call_year, callRegion, parameter, value, type, lca_activity) {
+function postAccomDataToAPI(apiKeyCell, activityId, dataVersion, callYear, callRegion, parameter, value, type, lcaActivity) {
   const cell = SpreadsheetApp.getActiveRange();
   const cellKey = `postAccomDataToAPI_${cell.getA1Notation()}`;
+  
+  // Retrieve the last known input values and result
+  const storedData = PropertiesService.getDocumentProperties().getProperty(cellKey);
+  let lastInputs = {};
+  let lastResult = null;
+
+  // Safely parse the stored data
+  try {
+    const parsedData = JSON.parse(storedData || "{}");
+    lastInputs = parsedData.inputs || {};
+    lastResult = parsedData.result || null;
+  } catch (e) {
+    lastResult = storedData || null; // Handle legacy plain text values
+  }
+
+  const currentInputs = { activityId, callYear, callRegion, parameter, value, type, lcaActivity };
+
+  // Check if inputs have changed; skip API call if not
+  const hasChanges = Object.keys(currentInputs).some(
+    (key) => currentInputs[key] !== lastInputs[key]
+  );
+
+  if (!hasChanges) {
+    return lastResult || "No Change"; // Return the last result if no changes
+  }
 
   if (!getApiToggleStatus("postAccomDataToAPI")) {
-    const lastValue = PropertiesService.getDocumentProperties().getProperty(cellKey);
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      "API is currently off. The value in this cell has not been updated.",
-      "API Off",
-      3 // Duration of 3 seconds
-    );
-    return lastValue ? lastValue : "API is OFF";
+    return "API OFF"; // Return "API OFF" if API is disabled
   }
 
   incrementApiCallCount();
 
-  // Perform the API call
   const apiUrl = "https://beta4.api.climatiq.io/estimate";
   const apiKey = SpreadsheetApp.getActiveSpreadsheet().getRange(apiKeyCell).getValue();
   const dataVersionValue = SpreadsheetApp.getActiveSpreadsheet().getRange(dataVersion).getValue();
@@ -469,44 +419,130 @@ function postAccomDataToAPI(apiKeyCell, activityId, dataVersion, call_year, call
       activity_id: activityId,
       data_version: dataVersionValue,
       region: callRegion,
-      year: call_year,
-      source_lca_activity: lca_activity
+      year: callYear,
+      source_lca_activity: lcaActivity,
     },
     parameters: {
       [parameter]: value,
-    }
+    },
   };
 
   const options = {
     method: "post",
     contentType: "application/json",
     headers: {
-      "Authorization": "Bearer " + apiKey
+      Authorization: "Bearer " + apiKey,
     },
-    payload: JSON.stringify(requestData)
+    payload: JSON.stringify(requestData),
   };
 
   try {
     const response = UrlFetchApp.fetch(apiUrl, options);
     const data = JSON.parse(response.getContentText());
 
+    // Interpret result based on "type"
     const result = type === "CO2e" ? data.co2e : type === "Source" ? data.emission_factor.source : "Invalid type specified";
-    PropertiesService.getDocumentProperties().setProperty(cellKey, result);
-    
-    return result;
 
+    // Store the new inputs and result in a structured format
+    PropertiesService.getDocumentProperties().setProperty(
+      cellKey,
+      JSON.stringify({ inputs: currentInputs, result })
+    );
+
+    return result;
   } catch (error) {
-    return "Error: " + error.message;
+    return "Error: " + error.message; // Handle API errors gracefully
   }
 }
 
-function postingStale() {
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-      "API is currently off. The value in this cell has not been updated.",
-      "API Off",
-      3 // Duration of 3 seconds
-    );
+function postAccomDataToAPI(apiKeyCell, activityId, dataVersion, callYear, callRegion, parameter, value, type, lcaActivity) {
+  const cell = SpreadsheetApp.getActiveRange();
+  const cellKey = `postAccomDataToAPI_${cell.getA1Notation()}`;
+
+  // Retrieve the last known input values and result
+  const storedData = PropertiesService.getDocumentProperties().getProperty(cellKey);
+  let lastInputs = {};
+  let lastResult = null;
+
+  // Safely parse the stored data
+  if (storedData) {
+    try {
+      const parsedData = JSON.parse(storedData);
+      lastInputs = parsedData.inputs || {};
+      lastResult = parsedData.result || null;
+    } catch (e) {
+      lastResult = storedData; // Handle legacy plain text values
+    }
+  }
+
+  const currentInputs = { activityId, callYear, callRegion, parameter, value, type, lcaActivity };
+
+  // Check if inputs have changed
+  const hasChanges = Object.keys(currentInputs).some(
+    (key) => currentInputs[key] !== lastInputs[key]
+  );
+
+  if (!getApiToggleStatus("postAccomDataToAPI")) {
+    // API is OFF: Return "API OFF" ONLY if there are changes
+    if (hasChanges) {
+      return "API OFF";
+    }
+    // Otherwise, retain the cached result
+    return lastResult || "No Value";
+  }
+
+  // API is ON and inputs have changed: Make API call
+  if (hasChanges) {
+    incrementApiCallCount();
+
+    const apiUrl = "https://beta4.api.climatiq.io/estimate";
+    const apiKey = SpreadsheetApp.getActiveSpreadsheet().getRange(apiKeyCell).getValue();
+    const dataVersionValue = SpreadsheetApp.getActiveSpreadsheet().getRange(dataVersion).getValue();
+
+    const requestData = {
+      emission_factor: {
+        activity_id: activityId,
+        data_version: dataVersionValue,
+        region: callRegion,
+        year: callYear,
+        source_lca_activity: lcaActivity,
+      },
+      parameters: {
+        [parameter]: value,
+      },
+    };
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        Authorization: "Bearer " + apiKey,
+      },
+      payload: JSON.stringify(requestData),
+    };
+
+    try {
+      const response = UrlFetchApp.fetch(apiUrl, options);
+      const data = JSON.parse(response.getContentText());
+
+      const result = type === "CO2e" ? data.co2e : type === "Source" ? data.emission_factor.source : "Invalid type specified";
+
+      // Store the new inputs and result in a structured format
+      PropertiesService.getDocumentProperties().setProperty(
+        cellKey,
+        JSON.stringify({ inputs: currentInputs, result })
+      );
+
+      return result; // Return the API result
+    } catch (error) {
+      return "Error: " + error.message; // Handle API errors gracefully
+    }
+  }
+
+  // If no changes and API is ON, return the last cached result
+  return lastResult || "No Value";
 }
+
 
 function postSpendDataToAPI(apiKeyCell, activityId, dataVersion, call_year, callRegion, value, unit, type, transport) {
   const cell = SpreadsheetApp.getActiveRange();
