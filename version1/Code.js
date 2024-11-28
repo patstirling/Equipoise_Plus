@@ -120,7 +120,21 @@ function griddropdown() {
 }
 
 function onEdit() {
+  const now = new Date().getTime();
+  const idleTimeout = 60000; // 1 minute timeout
 
+  // Get the last activity timestamp
+  const lastActivityTime = PropertiesService.getDocumentProperties().getProperty("lastActivityTime");
+
+  // If last activity time exists and exceeds timeout, turn off APIs
+  if (lastActivityTime && now - parseInt(lastActivityTime, 10) > idleTimeout) {
+    //toggleAllAPIs(false); // Automatically turn off APIs
+  }
+
+  // Update the last activity timestamp
+  PropertiesService.getDocumentProperties().setProperty("lastActivityTime", now);
+
+  // Handle other onEdit actions
   exiodropdown();
   introdropdown();
   fueldropdown();
@@ -128,14 +142,10 @@ function onEdit() {
   traveldropdown();
   wastedropdown();
   griddropdown();
-
 }
-
-
 
 function onOpen() {
   updateMenu();
-  ensureAutoTurnOffTrigger();
 }
 
 function updateMenu() {
@@ -186,27 +196,6 @@ function toggleAllAPIsOff() {
   toggleAllAPIs(false);
 }
 
-function autoTurnOffAPIs() {
-  const lastActivityTime = PropertiesService.getDocumentProperties().getProperty("lastActivityTime");
-  const now = new Date().getTime();
-  const idleTimeout = 60000;
-
-  if (lastActivityTime && now - parseInt(lastActivityTime, 10) > idleTimeout) {
-    toggleAllAPIs(false);
-  }
-}
-
-function ensureAutoTurnOffTrigger() {
-  const triggers = ScriptApp.getProjectTriggers();
-  const triggerExists = triggers.some(trigger => trigger.getHandlerFunction() === "autoTurnOffAPIs");
-
-  if (!triggerExists) {
-    ScriptApp.newTrigger("autoTurnOffAPIs")
-      .timeBased()
-      .everyMinutes(1) // For testing; change to `.everyHours(1)` later
-      .create();
-  }
-}
 
 function debugApiStatuses() {
   const statuses = [
@@ -544,6 +533,7 @@ function postAccomDataToAPI(apiKeyCell, activityId, dataVersion, callYear, callR
 }
 
 
+
 function postSpendDataToAPI(apiKeyCell, activityId, dataVersion, call_year, callRegion, value, unit, type, transport) {
   const cell = SpreadsheetApp.getActiveRange();
   const cellKey = `postSpendDataToAPI_${cell.getA1Notation()}`;
@@ -597,5 +587,6 @@ function getApiCallCount() {
   const properties = PropertiesService.getScriptProperties();
   return properties.getProperty("apiCallCount") || 0;
 }
+
 
 
